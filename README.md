@@ -2,10 +2,10 @@
 
 ## Student Info
 
-| Field     | Value               |
-|-----------|---------------------|
-| **Name**  | _John Doe_          |
-| **Group** | _CS-101_            |
+| Field     | Value                          |
+|-----------|--------------------------------|
+| **Name**  | Магомедов Руслан Шамильевич    |
+| **Group** |             РП-ИС              |
 
 > **Replace the data above with your own!**
 
