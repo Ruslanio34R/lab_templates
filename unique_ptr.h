@@ -6,15 +6,19 @@
 #include <type_traits>
 
 template <typename T, typename Deleter = std::default_delete<T>>
-class UniquePtr : private Deleter {
+class UniquePtr {
 public:
     // ======================== Constructors ========================
     UniquePtr() noexcept : ptr_(nullptr) {}
     explicit UniquePtr(T* ptr) noexcept : ptr_(ptr) {}
     UniquePtr(T* ptr, const Deleter& deleter) 
-        : Deleter(deleter), ptr_(ptr) {}
+        : ptr_(ptr) {
+        new (&get_deleter()) Deleter(deleter);
+    }
     UniquePtr(T* ptr, Deleter&& deleter) 
-        : Deleter(std::move(deleter)), ptr_(ptr) {}
+        : ptr_(ptr) {
+        new (&get_deleter()) Deleter(std::move(deleter));
+    }
 
     // =================== No copy ==================================
     UniquePtr(const UniquePtr&) = delete;
@@ -22,7 +26,8 @@ public:
 
     // =================== Move ====================================
     UniquePtr(UniquePtr&& other) noexcept
-        : Deleter(std::move(other.get_deleter())), ptr_(other.ptr_) {
+        : ptr_(other.ptr_) {
+        new (&get_deleter()) Deleter(std::move(other.get_deleter()));
         other.ptr_ = nullptr;
     }
     
@@ -39,6 +44,7 @@ public:
     // =================== Destructor ==============================
     ~UniquePtr() {
         reset();
+        get_deleter().~Deleter();
     }
 
     // =================== Observers ===============================
@@ -52,8 +58,13 @@ public:
     T* operator->() noexcept { return ptr_; }
     const T* operator->() const noexcept { return ptr_; }
 
-    Deleter& get_deleter() noexcept { return *this; }
-    const Deleter& get_deleter() const noexcept { return *this; }
+    Deleter& get_deleter() noexcept {
+        return reinterpret_cast<Deleter&>(storage_);
+    }
+    
+    const Deleter& get_deleter() const noexcept {
+        return reinterpret_cast<const Deleter&>(storage_);
+    }
 
     // =================== Modifiers ===============================
     T* release() noexcept {
@@ -76,6 +87,7 @@ public:
 
 private:
     T* ptr_;
+    mutable typename std::aligned_storage<sizeof(Deleter), alignof(Deleter)>::type storage_;
 };
 
 // =====================================================================
@@ -83,15 +95,19 @@ private:
 // =====================================================================
 
 template <typename T, typename Deleter>
-class UniquePtr<T[], Deleter> : private Deleter {
+class UniquePtr<T[], Deleter> {
 public:
     // ======================== Constructors ========================
     UniquePtr() noexcept : ptr_(nullptr) {}
     explicit UniquePtr(T* ptr) noexcept : ptr_(ptr) {}
     UniquePtr(T* ptr, const Deleter& deleter) 
-        : Deleter(deleter), ptr_(ptr) {}
+        : ptr_(ptr) {
+        new (&get_deleter()) Deleter(deleter);
+    }
     UniquePtr(T* ptr, Deleter&& deleter) 
-        : Deleter(std::move(deleter)), ptr_(ptr) {}
+        : ptr_(ptr) {
+        new (&get_deleter()) Deleter(std::move(deleter));
+    }
 
     // =================== No copy ==================================
     UniquePtr(const UniquePtr&) = delete;
@@ -99,7 +115,8 @@ public:
 
     // =================== Move ====================================
     UniquePtr(UniquePtr&& other) noexcept
-        : Deleter(std::move(other.get_deleter())), ptr_(other.ptr_) {
+        : ptr_(other.ptr_) {
+        new (&get_deleter()) Deleter(std::move(other.get_deleter()));
         other.ptr_ = nullptr;
     }
     
@@ -116,6 +133,7 @@ public:
     // =================== Destructor ==============================
     ~UniquePtr() {
         reset();
+        get_deleter().~Deleter();
     }
 
     // =================== Observers ===============================
@@ -126,8 +144,13 @@ public:
     T& operator[](size_t index) noexcept { return ptr_[index]; }
     const T& operator[](size_t index) const noexcept { return ptr_[index]; }
 
-    Deleter& get_deleter() noexcept { return *this; }
-    const Deleter& get_deleter() const noexcept { return *this; }
+    Deleter& get_deleter() noexcept {
+        return reinterpret_cast<Deleter&>(storage_);
+    }
+    
+    const Deleter& get_deleter() const noexcept {
+        return reinterpret_cast<const Deleter&>(storage_);
+    }
 
     // =================== Modifiers ===============================
     T* release() noexcept {
@@ -150,6 +173,7 @@ public:
 
 private:
     T* ptr_;
+    mutable typename std::aligned_storage<sizeof(Deleter), alignof(Deleter)>::type storage_;
 };
 
 // =================== Free function ===============================
