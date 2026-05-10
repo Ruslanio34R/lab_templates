@@ -3,49 +3,73 @@
 #include <cstddef>
 #include <memory>
 #include <utility>
+#include <type_traits>
  
 template <typename T, typename Deleter = std::default_delete<T>>
-class UniquePtr {
+class UniquePtr : private Deleter {  // ← наследование вместо члена
 public:
     // ======================== Constructors ========================
-    UniquePtr();
-    explicit UniquePtr(T* ptr);
-    UniquePtr(T* ptr, const Deleter& deleter);
-    UniquePtr(T* ptr, Deleter&& deleter);
+    UniquePtr() : ptr_(nullptr) {}
+    explicit UniquePtr(T* ptr) : ptr_(ptr) {}
+    UniquePtr(T* ptr, const Deleter& deleter) 
+        : Deleter(deleter), ptr_(ptr) {}
+    UniquePtr(T* ptr, Deleter&& deleter) 
+        : Deleter(std::move(deleter)), ptr_(ptr) {}
  
     // =================== No copy ==================================
     UniquePtr(const UniquePtr&) = delete;
     UniquePtr& operator=(const UniquePtr&) = delete;
  
     // =================== Move ====================================
-    UniquePtr(UniquePtr&& other);
-    UniquePtr& operator=(UniquePtr&& other);
+    UniquePtr(UniquePtr&& other) 
+        : Deleter(std::move(other.get_deleter())), ptr_(other.release()) {}
+    
+    UniquePtr& operator=(UniquePtr&& other) {
+        if (this != &other) {
+            reset(other.release());
+            get_deleter() = std::move(other.get_deleter());
+        }
+        return *this;
+    }
  
     // =================== Destructor ==============================
-    ~UniquePtr();
+    ~UniquePtr() {
+        reset();
+    }
  
     // =================== Observers ===============================
-    T* get();
-    const T* get() const;
-    explicit operator bool() const;
+    T* get() { return ptr_; }
+    const T* get() const { return ptr_; }
+    explicit operator bool() const { return ptr_ != nullptr; }
  
-    T& operator*();
-    const T& operator*() const;
+    T& operator*() { return *ptr_; }
+    const T& operator*() const { return *ptr_; }
  
-    T* operator->();
-    const T* operator->() const;
+    T* operator->() { return ptr_; }
+    const T* operator->() const { return ptr_; }
  
-    Deleter& get_deleter();
-    const Deleter& get_deleter() const;
+    Deleter& get_deleter() { return *this; }
+    const Deleter& get_deleter() const { return *this; }
  
     // =================== Modifiers ===============================
-    T* release();
-    void reset(T* ptr = nullptr);
-    void swap(UniquePtr& other);
+    T* release() {
+        T* tmp = ptr_;
+        ptr_ = nullptr;
+        return tmp;
+    }
+    
+    void reset(T* ptr = nullptr) {
+        if (ptr_) get_deleter()(ptr_);
+        ptr_ = ptr;
+    }
+    
+    void swap(UniquePtr& other) {
+        std::swap(ptr_, other.ptr_);
+        std::swap(get_deleter(), other.get_deleter());
+    }
  
 private:
     T* ptr_ = nullptr;
-    Deleter deleter_;
 };
  
 // =====================================================================
@@ -53,216 +77,70 @@ private:
 // =====================================================================
  
 template <typename T, typename Deleter>
-class UniquePtr<T[], Deleter> {
+class UniquePtr<T[], Deleter> : private Deleter {
 public:
     // ======================== Constructors ========================
-    UniquePtr();
-    explicit UniquePtr(T* ptr);
-    UniquePtr(T* ptr, const Deleter& deleter);
-    UniquePtr(T* ptr, Deleter&& deleter);
+    UniquePtr() : ptr_(nullptr) {}
+    explicit UniquePtr(T* ptr) : ptr_(ptr) {}
+    UniquePtr(T* ptr, const Deleter& deleter) 
+        : Deleter(deleter), ptr_(ptr) {}
+    UniquePtr(T* ptr, Deleter&& deleter) 
+        : Deleter(std::move(deleter)), ptr_(ptr) {}
  
     // =================== No copy ==================================
     UniquePtr(const UniquePtr&) = delete;
     UniquePtr& operator=(const UniquePtr&) = delete;
  
     // =================== Move ====================================
-    UniquePtr(UniquePtr&& other);
-    UniquePtr& operator=(UniquePtr&& other);
+    UniquePtr(UniquePtr&& other) 
+        : Deleter(std::move(other.get_deleter())), ptr_(other.release()) {}
+    
+    UniquePtr& operator=(UniquePtr&& other) {
+        if (this != &other) {
+            reset(other.release());
+            get_deleter() = std::move(other.get_deleter());
+        }
+        return *this;
+    }
  
     // =================== Destructor ==============================
-    ~UniquePtr();
+    ~UniquePtr() {
+        reset();
+    }
  
     // =================== Observers ===============================
-    T* get();
-    const T* get() const;
-    explicit operator bool() const;
+    T* get() { return ptr_; }
+    const T* get() const { return ptr_; }
+    explicit operator bool() const { return ptr_ != nullptr; }
  
-    T& operator[](size_t index);
-    const T& operator[](size_t index) const;
+    T& operator[](size_t index) { return ptr_[index]; }
+    const T& operator[](size_t index) const { return ptr_[index]; }
  
-    Deleter& get_deleter();
-    const Deleter& get_deleter() const;
+    Deleter& get_deleter() { return *this; }
+    const Deleter& get_deleter() const { return *this; }
  
     // =================== Modifiers ===============================
-    T* release();
-    void reset(T* ptr = nullptr);
-    void swap(UniquePtr& other);
+    T* release() {
+        T* tmp = ptr_;
+        ptr_ = nullptr;
+        return tmp;
+    }
+    
+    void reset(T* ptr = nullptr) {
+        if (ptr_) get_deleter()(ptr_);
+        ptr_ = ptr;
+    }
+    
+    void swap(UniquePtr& other) {
+        std::swap(ptr_, other.ptr_);
+        std::swap(get_deleter(), other.get_deleter());
+    }
  
 private:
     T* ptr_ = nullptr;
-    Deleter deleter_;
 };
  
 // =================== Free function ===============================
- 
-template <typename T, typename... Args>
-UniquePtr<T> make_unique(Args&&... args);
- 
-// =================== TODO: implement below =======================
- 
-// --- Primary template ---
- 
-template <typename T, typename Deleter>
-UniquePtr<T, Deleter>::UniquePtr() : ptr_(nullptr), deleter_() {}
- 
-template <typename T, typename Deleter>
-UniquePtr<T, Deleter>::UniquePtr(T* ptr) : ptr_(ptr), deleter_() {}
- 
-template <typename T, typename Deleter>
-UniquePtr<T, Deleter>::UniquePtr(T* ptr, const Deleter& deleter)
-    : ptr_(ptr), deleter_(deleter) {}
- 
-template <typename T, typename Deleter>
-UniquePtr<T, Deleter>::UniquePtr(T* ptr, Deleter&& deleter)
-    : ptr_(ptr), deleter_(std::move(deleter)) {}
- 
-template <typename T, typename Deleter>
-UniquePtr<T, Deleter>::UniquePtr(UniquePtr&& other)
-    : ptr_(other.ptr_), deleter_(std::move(other.deleter_)) {
-    other.ptr_ = nullptr;
-}
- 
-template <typename T, typename Deleter>
-UniquePtr<T, Deleter>& UniquePtr<T, Deleter>::operator=(UniquePtr&& other) {
-    if (this != &other) {
-        reset();
-        ptr_ = other.ptr_;
-        deleter_ = std::move(other.deleter_);
-        other.ptr_ = nullptr;
-    }
-    return *this;
-}
- 
-template <typename T, typename Deleter>
-UniquePtr<T, Deleter>::~UniquePtr() {
-    reset();
-}
- 
-template <typename T, typename Deleter>
-T* UniquePtr<T, Deleter>::get() { return ptr_; }
- 
-template <typename T, typename Deleter>
-const T* UniquePtr<T, Deleter>::get() const { return ptr_; }
- 
-template <typename T, typename Deleter>
-UniquePtr<T, Deleter>::operator bool() const { return ptr_ != nullptr; }
- 
-template <typename T, typename Deleter>
-T& UniquePtr<T, Deleter>::operator*() { return *ptr_; }
- 
-template <typename T, typename Deleter>
-const T& UniquePtr<T, Deleter>::operator*() const { return *ptr_; }
- 
-template <typename T, typename Deleter>
-T* UniquePtr<T, Deleter>::operator->() { return ptr_; }
- 
-template <typename T, typename Deleter>
-const T* UniquePtr<T, Deleter>::operator->() const { return ptr_; }
- 
-template <typename T, typename Deleter>
-Deleter& UniquePtr<T, Deleter>::get_deleter() { return deleter_; }
- 
-template <typename T, typename Deleter>
-const Deleter& UniquePtr<T, Deleter>::get_deleter() const { return deleter_; }
- 
-template <typename T, typename Deleter>
-T* UniquePtr<T, Deleter>::release() {
-    T* tmp = ptr_;
-    ptr_ = nullptr;
-    return tmp;
-}
- 
-template <typename T, typename Deleter>
-void UniquePtr<T, Deleter>::reset(T* ptr) {
-    if (ptr_) deleter_(ptr_);
-    ptr_ = ptr;
-}
- 
-template <typename T, typename Deleter>
-void UniquePtr<T, Deleter>::swap(UniquePtr& other) {
-    std::swap(ptr_, other.ptr_);
-    std::swap(deleter_, other.deleter_);
-}
- 
-// --- Array specialization ---
- 
-template <typename T, typename Deleter>
-UniquePtr<T[], Deleter>::UniquePtr() : ptr_(nullptr), deleter_() {}
- 
-template <typename T, typename Deleter>
-UniquePtr<T[], Deleter>::UniquePtr(T* ptr) : ptr_(ptr), deleter_() {}
- 
-template <typename T, typename Deleter>
-UniquePtr<T[], Deleter>::UniquePtr(T* ptr, const Deleter& deleter)
-    : ptr_(ptr), deleter_(deleter) {}
- 
-template <typename T, typename Deleter>
-UniquePtr<T[], Deleter>::UniquePtr(T* ptr, Deleter&& deleter)
-    : ptr_(ptr), deleter_(std::move(deleter)) {}
- 
-template <typename T, typename Deleter>
-UniquePtr<T[], Deleter>::UniquePtr(UniquePtr&& other)
-    : ptr_(other.ptr_), deleter_(std::move(other.deleter_)) {
-    other.ptr_ = nullptr;
-}
- 
-template <typename T, typename Deleter>
-UniquePtr<T[], Deleter>& UniquePtr<T[], Deleter>::operator=(UniquePtr&& other) {
-    if (this != &other) {
-        reset();
-        ptr_ = other.ptr_;
-        deleter_ = std::move(other.deleter_);
-        other.ptr_ = nullptr;
-    }
-    return *this;
-}
- 
-template <typename T, typename Deleter>
-UniquePtr<T[], Deleter>::~UniquePtr() {
-    reset();
-}
- 
-template <typename T, typename Deleter>
-T* UniquePtr<T[], Deleter>::get() { return ptr_; }
- 
-template <typename T, typename Deleter>
-const T* UniquePtr<T[], Deleter>::get() const { return ptr_; }
- 
-template <typename T, typename Deleter>
-UniquePtr<T[], Deleter>::operator bool() const { return ptr_ != nullptr; }
- 
-template <typename T, typename Deleter>
-T& UniquePtr<T[], Deleter>::operator[](size_t index) { return ptr_[index]; }
- 
-template <typename T, typename Deleter>
-const T& UniquePtr<T[], Deleter>::operator[](size_t index) const { return ptr_[index]; }
- 
-template <typename T, typename Deleter>
-Deleter& UniquePtr<T[], Deleter>::get_deleter() { return deleter_; }
- 
-template <typename T, typename Deleter>
-const Deleter& UniquePtr<T[], Deleter>::get_deleter() const { return deleter_; }
- 
-template <typename T, typename Deleter>
-T* UniquePtr<T[], Deleter>::release() {
-    T* tmp = ptr_;
-    ptr_ = nullptr;
-    return tmp;
-}
- 
-template <typename T, typename Deleter>
-void UniquePtr<T[], Deleter>::reset(T* ptr) {
-    if (ptr_) deleter_(ptr_);
-    ptr_ = ptr;
-}
- 
-template <typename T, typename Deleter>
-void UniquePtr<T[], Deleter>::swap(UniquePtr& other) {
-    std::swap(ptr_, other.ptr_);
-    std::swap(deleter_, other.deleter_);
-}
- 
-// --- make_unique ---
  
 template <typename T, typename... Args>
 UniquePtr<T> make_unique(Args&&... args) {
