@@ -62,7 +62,7 @@ Array<T>::Array(size_t size)
  
 template <typename T>
 Array<T>::Array(size_t size, const T& value)
-    : data_(size > 0 ? new T[size] : nullptr), size_(size) {
+    : data_(new T[size]), size_(size) {
     for (size_t i = 0; i < size_; ++i)
         data_[i] = value;
 }
